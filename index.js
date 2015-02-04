@@ -25,78 +25,85 @@ function getHash(data) {
  */
 function compileFile(file, src, opts) {
   var compiled;
-  opts.traceurOverrides = exports.traceurOverrides;
+  if (opts.traceurOverrides === undefined) opts.traceurOverrides = {};
   compiled = compile(file, src, opts);
   if (compiled.error) throw new Error(compiled.error);
 
   return compiled.source;
 }
 
-function es6ify(opts) {
+/**
+ * The es6ify plugin to be used with browserify.
+ *
+ * #### Example
+ *
+ * `browserify().plugin(es6ify, { filePattern: /\.es6$/ })`
+ *
+ * @name es6ify
+ * @function
+ * @param {{filePattern: (undefined|!RegExp), basedir: (undefined|string), traceurOverrides: (undefined|object), includeRuntime: (undefined|boolean)}=} opts
+ * filePattern (default: `/\.js$/`) pattern of files that will be es6ified
+ * basedir Base path to compute relative paths for `sources`
+ * traceurOverrides Allows to override traceur compiler defaults. In order to support async functions (`async`/`await`) do: `{ asyncFunctions: true }`.
+ * includeRuntime (default: `true`) Include traceur runtime.
+ * @return
+ */
+
+exports = module.exports = function es6ify(b, opts) {
+  var transform;
   if (opts === undefined) opts = {};
   if (opts.filePattern === undefined) opts.filePattern = /\.js$/;
   else if (!(opts.filePattern instanceof RegExp)) {
     throw new Error("`filePattern` must be a RegExp if defined.");
   }
-  var filePattern = opts.filePattern;
 
-  return function (file) {
-
-    // Don't es6ify the traceur runtime
-    if (file === runtime) return through();
-
-    if (!filePattern.test(file)) return through();
-
-    var data = '';
-    return through(write, end);
-
-    function write (buf) { data += buf; }
-    function end () {
-      var hash = getHash(data)
-        , cached = cache[file];
-
-      if (!cached || cached.hash !== hash) {
-        try {
-          cache[file] = { compiled: compileFile(file, data, opts), hash: hash };
-        } catch (ex) {
-          this.emit('error', ex);
-          return this.queue(null);
-        }
-      }
-
-      this.queue(cache[file].compiled);
-      this.queue(null);
-    }
-  };
-}
-
-/**
- * The es6ify transform to be used with browserify.
- *
- * #### Example
- *
- * `browserify().transform(es6ify)`
- *
- * @name es6ify
- * @function
- * @return {function} function that returns a `TransformStream` when called with a `file`
- */
-exports = module.exports = function plugin (b, opts) {
   if (opts.basedir === undefined) opts.basedir = b._options.basedir;
-  b.transform(es6ify(opts));
-};
+  if (opts.includeRuntime === undefined) opts.includeRuntime = true;
+  if (opts.includeRuntime) b.add(runtime);
 
-/**
- * Configurable es6ify transform function that allows specifying the `filePattern` of files to be compiled.
- *
- * @name es6ify::configure
- * @function
- * @param {{filePattern: (undefined|!RegExp), basedir: (undefined|string)}=} opts
- * filePattern (default: `/\.js$/`) pattern of files that will be es6ified
- * basedir Base path to compute relative paths for `sources`
- * @return {function} function that returns a `TransformStream` when called with a `file`
- */
-exports.configure = es6ify;
+  transform = makeTransform();
+
+  b.transform(transform);
+
+  // Browserify doesn't specify a return value for plugins, so return the
+  // transform for use in tests.
+  return transform;
+
+  function makeTransform() {
+    return function es6ify(file) {
+
+      // Don't es6ify the traceur runtime
+      if (file === runtime) return through();
+
+      if (!opts.filePattern.test(file)) return through();
+
+      var data = '';
+      return through(write, end);
+
+      function write (buf) { data += buf; }
+      function end () {
+        var hash = getHash(data)
+          , cached = cache[file];
+
+        if (!cached || cached.hash !== hash) {
+          try {
+            cache[file] = {
+              compiled: compileFile(file, data, opts),
+              hash: hash
+            };
+          } catch (ex) {
+            this.emit('error', ex);
+            return this.queue(null);
+          }
+        }
+
+        this.queue(cache[file].compiled);
+        this.queue(null);
+      }
+    };
+  }
+  // makeTransform
+}
 
 /**
  * The traceur runtime exposed here so it can be included in the bundle via:
@@ -112,18 +119,4 @@ exports.configure = es6ify;
  */
 exports.runtime = runtime;
 
-
 exports.compileFile = compileFile;
-
-/**
- * Allows to override traceur compiler defaults.
- *
- * ### Example
- *
- * In order to support async functions (`async`/`await`) do:
- *
- * `es6ify.traceurOverrides = { asyncFunctions: true }`
- *
- * @name  es6ify::traceurOverrides
- */
-exports.traceurOverrides = {};
