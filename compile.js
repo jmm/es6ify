@@ -31,7 +31,7 @@ exports = module.exports = function compileFile(file, contents, traceurOverrides
   try{
     var compiler = new Compiler(options);
 
-    var result = compiler.compile(contents, file, file);
+    var result = compiler.compile(contents, require('path').relative(process.cwd(), file), file);
   }catch(errors){
       return { source: null, error: errors[0] };
   }
