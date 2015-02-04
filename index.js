@@ -81,7 +81,10 @@ function es6ify(opts) {
  * @function
  * @return {function} function that returns a `TransformStream` when called with a `file`
  */
-exports = module.exports = es6ify();
+exports = module.exports = function plugin (b, opts) {
+  if (opts.basedir === undefined) opts.basedir = b._options.basedir;
+  b.transform(es6ify(opts));
+};
 
 /**
  * Configurable es6ify transform function that allows specifying the `filePattern` of files to be compiled.
