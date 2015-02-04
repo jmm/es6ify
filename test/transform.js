@@ -8,6 +8,7 @@ var test       =  require('tap').test
   , convert    =  require('convert-source-map')
   , compile    =  require('../compile')
   , proxyquire =  require('proxyquire')
+  , browserify =  require('browserify')
     // Cached file contents.
   , files = {}
 
@@ -66,7 +67,9 @@ function addsSourceMap (t, opts) {
   // public option for es6ify is named basedir.
   if (opts.useSourceRoot) es6ifyOpts.basedir = paths.in.sourceRoot;
   var es6ify = proxyquire('..', { './compile' : trackingCompile } )
-  es6ify = es6ify.configure(es6ifyOpts);
+
+  // Get the transform
+  es6ify = es6ify(browserify(), es6ifyOpts);
 
   // File reads pending.
   var pending = 0;
@@ -157,7 +160,8 @@ test('transform does not add sourcemaps if traceurOverrides.sourceMaps is false'
     var es6ify = require('..');
     var file = path.join(__dirname, '../example/src/features/iterators.js');
 
-    es6ify.traceurOverrides = { sourceMaps: false };
+    // Get the transform
+    es6ify = es6ify(browserify(), { traceurOverrides: { sourceMaps: false } });
 
     fs.createReadStream(file)
       .pipe(es6ify(file))

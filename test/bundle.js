@@ -34,12 +34,13 @@ var format     =  require('util').format;
   test('\nbundle ' + (useRuntime ? 'with' : 'without') + ' traceur runtime - ' + filename, function (t) {
     t.plan(expectedLogs.length)
 
-    es6ify.traceurOverrides = overrides;
     var bfy = browserify();
-    if (useRuntime) bfy.add(es6ify.runtime);
 
     bfy
-      .transform(es6ify)
+      .plugin(es6ify, {
+        includeRuntime: useRuntime,
+        traceurOverrides: overrides,
+      })
       .require(__dirname + '/bundle/' + filename + '.js', { entry: true })
       .bundle(function (err, src) {
         if (err) t.fail(err);
