@@ -59,7 +59,15 @@ exports = module.exports = function es6ify(b, opts) {
 
   if (opts.basedir === undefined) opts.basedir = b._options.basedir;
   if (opts.includeRuntime === undefined) opts.includeRuntime = true;
-  if (opts.includeRuntime) b.add(runtime);
+  if (opts.includeRuntime) {
+    // Process records that have previously entered the pipeline.
+    b._recorded.forEach(function (rec) {
+      reorderEntry(rec);
+    });
+    // Push a pipeline step to process records hereafter entering the pipeline.
+    b.pipeline.get('record').push(reorderEntries());
+    b.add(runtime);
+  }
 
   transform = makeTransform();
 
@@ -104,6 +112,29 @@ exports = module.exports = function es6ify(b, opts) {
   }
   // makeTransform
 }
+
+// Reorder a pipeline record.
+function reorderEntry(rec) {
+  if (rec.entry) rec.order++;
+  if (rec.id === runtime) rec.order = 1;
+  return rec;
+}
+// reorderEntry
+
+// Create a stream to insert in the browserify pipeline to reorder entry files
+// so traceur runtime is number one.
+function reorderEntries() {
+  var stream = through(write);
+  stream.label = 'es6ify-reorder-entries';
+
+  return stream;
+
+  function write(rec) {
+    reorderEntry(rec);
+    this.queue(rec);
+  }
+}
+// reorderEntries
 
 /**
  * The traceur runtime exposed here so it can be included in the bundle via:
